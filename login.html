@@ -1,0 +1,248 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0f">
+  <title>Entrar | Mercado Público</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #0b0b0f;
+      color: #f5f3ff;
+      font-family: Arial, sans-serif;
+    }
+
+    .painel {
+      width: 100%;
+      max-width: 440px;
+      padding: 32px;
+      background: #15151d;
+      border: 1px solid #30303b;
+      border-radius: 18px;
+    }
+
+    .logo {
+      display: block;
+      margin-bottom: 28px;
+      color: #a78bfa;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .descricao {
+      margin-bottom: 25px;
+      color: #a1a1aa;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      margin: 18px 0 8px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #30303b;
+      border-radius: 9px;
+      background: #0e0e14;
+      color: white;
+      font: inherit;
+    }
+
+    input:focus {
+      outline: 1px solid #8b5cf6;
+      border-color: #8b5cf6;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 14px;
+      border: none;
+      border-radius: 9px;
+      background: #8b5cf6;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    #mensagem {
+      margin-top: 18px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .erro {
+      color: #fca5a5;
+    }
+
+    .sucesso {
+      color: #86efac;
+    }
+
+    .rodape {
+      margin-top: 22px;
+      color: #a1a1aa;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    a {
+      color: #c4b5fd;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="painel">
+    <a class="logo" href="index.html">Mercado Público</a>
+
+    <h1>Bem-vindo de volta!</h1>
+    <p class="descricao">Entre na sua conta para continuar.</p>
+
+    <form id="form-login">
+      <label for="email">E-mail</label>
+      <input
+        id="email"
+        type="email"
+        autocomplete="email"
+        required
+      >
+
+      <label for="senha">Senha</label>
+      <input
+        id="senha"
+        type="password"
+        autocomplete="current-password"
+        required
+      >
+
+      <button id="botao" type="submit">Entrar</button>
+      <p id="mensagem" role="status" aria-live="polite"></p>
+    </form>
+
+    <div class="rodape">
+      <a href="#" id="recuperar">Esqueci minha senha</a>
+      <br>
+      Ainda não tem conta? <a href="cadastro.html">Criar conta</a>
+      <br>
+      <a href="index.html">Voltar ao marketplace</a>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="JS/supabase.js"></script>
+
+  <script>
+    const form = document.querySelector("#form-login");
+    const botao = document.querySelector("#botao");
+    const mensagem = document.querySelector("#mensagem");
+
+    function mostrar(texto, tipo) {
+      mensagem.textContent = texto;
+      mensagem.className = tipo;
+    }
+
+    form.addEventListener("submit", async function (evento) {
+      evento.preventDefault();
+      mensagem.textContent = "";
+
+      if (typeof supabaseClient === "undefined") {
+        mostrar("Não foi possível conectar ao Supabase.", "erro");
+        return;
+      }
+
+      botao.disabled = true;
+      botao.textContent = "Entrando...";
+
+      try {
+        const email = document.querySelector("#email").value.trim();
+        const senha = document.querySelector("#senha").value;
+
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password: senha
+        });
+
+        if (error) throw error;
+
+        mostrar("Login realizado! Abrindo o marketplace...", "sucesso");
+
+        setTimeout(function () {
+          window.location.href = "index.html";
+        }, 800);
+
+      } catch (erro) {
+        mostrar(
+          "Não foi possível entrar. Confira seu e-mail, senha e se a conta já foi confirmada.",
+          "erro"
+        );
+      } finally {
+        botao.disabled = false;
+        botao.textContent = "Entrar";
+      }
+    });
+
+    document.querySelector("#recuperar").addEventListener(
+      "click",
+      async function (evento) {
+        evento.preventDefault();
+
+        const email = document.querySelector("#email").value.trim();
+
+        if (!email) {
+          mostrar("Digite seu e-mail primeiro para receber o link de recuperação.", "erro");
+          return;
+        }
+
+        try {
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(
+            email,
+            {
+              redirectTo: window.location.origin + "/login.html"
+            }
+          );
+
+          if (error) throw error;
+
+          mostrar(
+            "Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.",
+            "sucesso"
+          );
+        } catch (erro) {
+          mostrar("Não foi possível solicitar a recuperação agora.", "erro");
+        }
+      }
+    );
+  </script>
+</body>
+</html>

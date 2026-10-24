@@ -1,0 +1,458 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0f">
+  <title>Anunciar produto | Marketplace</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --fundo: #0b0b0f;
+      --painel: #15151d;
+      --roxo: #8b5cf6;
+      --roxo-claro: #a78bfa;
+      --texto: #f5f3ff;
+      --cinza: #a1a1aa;
+      --borda: #30303b;
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--fundo);
+      color: var(--texto);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    header {
+      padding: 20px 6%;
+      border-bottom: 1px solid var(--borda);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      color: var(--texto);
+      font-size: 23px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .logo span {
+      color: var(--roxo-claro);
+    }
+
+    .voltar {
+      color: var(--texto);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    main {
+      width: min(720px, 92%);
+      margin: 42px auto;
+    }
+
+    .introducao {
+      margin-bottom: 26px;
+    }
+
+    .introducao h1 {
+      font-size: clamp(27px, 5vw, 36px);
+      margin-bottom: 10px;
+    }
+
+    .introducao p {
+      color: var(--cinza);
+      line-height: 1.6;
+    }
+
+    .formulario {
+      padding: clamp(20px, 5vw, 32px);
+      background: var(--painel);
+      border: 1px solid var(--borda);
+      border-radius: 18px;
+    }
+
+    .campo {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 9px;
+    }
+
+    input, textarea, select {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--borda);
+      border-radius: 10px;
+      outline: none;
+      background: #0e0e14;
+      color: var(--texto);
+      font: inherit;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--roxo);
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: #777783;
+    }
+
+    textarea {
+      min-height: 125px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .duas-colunas {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .ajuda {
+      color: var(--cinza);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+
+    .botao {
+      width: 100%;
+      padding: 15px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--roxo);
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .botao:hover {
+      background: #7c3aed;
+    }
+
+    .botao:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    #mensagem {
+      display: none;
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 10px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    #mensagem a {
+      color: var(--roxo-claro);
+    }
+
+    #mensagem.erro {
+      display: block;
+      background: #351719;
+      color: #fecaca;
+    }
+
+    #mensagem.sucesso {
+      display: block;
+      background: #142c20;
+      color: #bbf7d0;
+    }
+
+    footer {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--cinza);
+      font-size: 13px;
+    }
+
+    @media (max-width: 560px) {
+      .duas-colunas {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      header {
+        padding: 18px 4%;
+      }
+
+      main {
+        margin: 28px auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <a class="logo" href="index.html">Mercado <span>Público</span></a>
+    <a class="voltar" href="index.html">← Voltar aos produtos</a>
+  </header>
+
+  <main>
+    <section class="introducao">
+      <h1>Anuncie seu produto</h1>
+      <p>
+        Cadastre seu produto para colocá-lo à venda no marketplace.
+        Preencha os dados com atenção.
+      </p>
+    </section>
+
+    <form class="formulario" id="form-anuncio">
+      <div class="campo">
+        <label for="nome">Nome do produto *</label>
+        <input
+          id="nome"
+          name="nome"
+          type="text"
+          maxlength="120"
+          placeholder="Ex.: Fone Bluetooth"
+          required
+        >
+      </div>
+
+      <div class="campo">
+        <label for="descricao">Descrição *</label>
+        <textarea
+          id="descricao"
+          name="descricao"
+          maxlength="3000"
+          placeholder="Descreva o produto, seu estado e os detalhes importantes."
+          required
+        ></textarea>
+      </div>
+
+      <div class="duas-colunas">
+        <div class="campo">
+          <label for="preco">Preço (R$) *</label>
+          <input
+            id="preco"
+            name="preco"
+            type="number"
+            min="0.01"
+            max="99999999"
+            step="0.01"
+            placeholder="120,00"
+            required
+          >
+        </div>
+
+        <div class="campo">
+          <label for="categoria">Categoria *</label>
+          <select id="categoria" name="categoria" required>
+            <option value="">Escolha uma categoria</option>
+            <option value="Eletrônicos">Eletrônicos</option>
+            <option value="Celulares">Celulares</option>
+            <option value="Moda">Moda</option>
+            <option value="Casa">Casa e decoração</option>
+            <option value="Esportes">Esportes</option>
+            <option value="Games">Games</option>
+            <option value="Veículos">Veículos</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="duas-colunas">
+        <div class="campo">
+          <label for="condicao">Estado do produto *</label>
+          <select id="condicao" name="condicao" required>
+            <option value="">Escolha o estado</option>
+            <option value="Novo">Novo</option>
+            <option value="Usado">Usado</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="cidade">Cidade *</label>
+          <input
+            id="cidade"
+            name="cidade"
+            type="text"
+            maxlength="100"
+            placeholder="Ex.: Maceió"
+            required
+          >
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="imagem_url">Link da foto do produto</label>
+        <input
+          id="imagem_url"
+          name="imagem_url"
+          type="url"
+          maxlength="2000"
+          placeholder="https://exemplo.com/foto.jpg"
+        >
+        <p class="ajuda">
+          Opcional por enquanto. A foto precisa estar disponível por um link público.
+          O envio de arquivos será integrado ao armazenamento de imagens.
+        </p>
+      </div>
+
+      <button class="botao" id="botao-publicar" type="submit">
+        Publicar anúncio
+      </button>
+
+      <div id="mensagem" role="status" aria-live="polite"></div>
+    </form>
+  </main>
+
+  <footer>Mercado Público · Compre e venda com praticidade</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="JS/supabase.js"></script>
+
+  <script>
+    const formulario = document.querySelector("#form-anuncio");
+    const botao = document.querySelector("#botao-publicar");
+    const mensagem = document.querySelector("#mensagem");
+
+    function mostrarMensagem(texto, tipo) {
+      mensagem.className = tipo;
+      mensagem.replaceChildren();
+
+      // Exibe o texto sem interpretar conteúdo como HTML.
+      mensagem.appendChild(document.createTextNode(texto));
+    }
+
+    formulario.addEventListener("submit", async function (evento) {
+      evento.preventDefault();
+
+      mensagem.className = "";
+      mensagem.textContent = "";
+
+      if (
+        typeof supabaseClient === "undefined" ||
+        !supabaseClient
+      ) {
+        mostrarMensagem(
+          "A conexão com o banco não foi encontrada. Confira o arquivo JS/supabase.js.",
+          "erro"
+        );
+        return;
+      }
+
+      botao.disabled = true;
+      botao.textContent = "Verificando conta...";
+
+      try {
+        const { data: sessao, error: erroSessao } =
+          await supabaseClient.auth.getUser();
+
+        if (erroSessao) {
+          throw erroSessao;
+        }
+
+        const usuario = sessao.user;
+
+        if (!usuario) {
+          mostrarMensagem(
+            "Você precisa entrar na sua conta antes de publicar. Abrindo a página de login...",
+            "erro"
+          );
+          setTimeout(function () { window.location.href = "login.html"; }, 1200);
+          return;
+        }
+
+        const dados = new FormData(formulario);
+        const preco = Number(dados.get("preco"));
+        const linkImagem = String(dados.get("imagem_url") || "").trim();
+
+        if (!Number.isFinite(preco) || preco <= 0) {
+          mostrarMensagem("Digite um preço válido.", "erro");
+          return;
+        }
+
+        if (linkImagem) {
+          const url = new URL(linkImagem);
+
+          if (url.protocol !== "https:" && url.protocol !== "http:") {
+            mostrarMensagem("Use um link de imagem válido.", "erro");
+            return;
+          }
+        }
+
+        botao.textContent = "Publicando anúncio...";
+
+        const produto = {
+          nome: String(dados.get("nome")).trim(),
+          descricao: String(dados.get("descricao")).trim(),
+          preco: preco,
+          categoria: String(dados.get("categoria")),
+          condicao: String(dados.get("condicao")),
+          cidade: String(dados.get("cidade")).trim(),
+          imagem_url: linkImagem || null,
+          vendedor_id: usuario.id
+        };
+
+        const { error } = await supabaseClient
+          .from("produtos")
+          .insert(produto);
+
+        if (error) {
+          console.error("Erro ao publicar anúncio:", error.message);
+
+          if (error.code === "42501") {
+            mostrarMensagem(
+              "O banco bloqueou a publicação por segurança. Precisamos configurar a permissão de cadastro para vendedores autenticados.",
+              "erro"
+            );
+          } else {
+            mostrarMensagem(
+              "Não foi possível publicar: " + error.message,
+              "erro"
+            );
+          }
+
+          return;
+        }
+
+        mostrarMensagem(
+          "Anúncio publicado com sucesso! Voltando para a página de produtos...",
+          "sucesso"
+        );
+
+        formulario.reset();
+
+        setTimeout(function () {
+          window.location.href = "index.html";
+        }, 1500);
+
+      } catch (erro) {
+        console.error("Erro no anúncio:", erro);
+
+        mostrarMensagem(
+          "Ocorreu um erro ao publicar. Confira a conexão e tente novamente.",
+          "erro"
+        );
+      } finally {
+        botao.disabled = false;
+        botao.textContent = "Publicar anúncio";
+      }
+    });
+  </script>
+</body>
+</html>

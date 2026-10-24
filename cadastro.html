@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0f">
+  <title>Criar conta | Mercado Público</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #0b0b0f;
+      color: #f5f3ff;
+      font-family: Arial, sans-serif;
+    }
+
+    .painel {
+      width: 100%;
+      max-width: 440px;
+      padding: 32px;
+      background: #15151d;
+      border: 1px solid #30303b;
+      border-radius: 18px;
+    }
+
+    .logo {
+      display: block;
+      margin-bottom: 28px;
+      color: #a78bfa;
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .descricao {
+      margin-bottom: 25px;
+      color: #a1a1aa;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      margin: 18px 0 8px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #30303b;
+      border-radius: 9px;
+      background: #0e0e14;
+      color: white;
+      font: inherit;
+    }
+
+    input:focus, select:focus {
+      outline: 1px solid #8b5cf6;
+      border-color: #8b5cf6;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 14px;
+      border: none;
+      border-radius: 9px;
+      background: #8b5cf6;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    #mensagem {
+      margin-top: 18px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .erro {
+      color: #fca5a5;
+    }
+
+    .sucesso {
+      color: #86efac;
+    }
+
+    .rodape {
+      margin-top: 22px;
+      color: #a1a1aa;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    a {
+      color: #c4b5fd;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="painel">
+    <a class="logo" href="index.html">Mercado Público</a>
+
+    <h1>Criar sua conta</h1>
+    <p class="descricao">
+      Cadastre-se para comprar e vender produtos.
+    </p>
+
+    <form id="form-cadastro">
+      <label for="nome">Seu nome</label>
+      <input
+        id="nome"
+        name="nome"
+        type="text"
+        maxlength="100"
+        autocomplete="name"
+        required
+      >
+
+      <label for="email">E-mail</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autocomplete="email"
+        required
+      >
+
+      <label for="senha">Senha</label>
+      <input
+        id="senha"
+        name="senha"
+        type="password"
+        minlength="8"
+        autocomplete="new-password"
+        required
+      >
+
+      <label for="tipo">Quero me cadastrar como</label>
+      <select id="tipo" name="tipo" required>
+        <option value="comprador">Comprador</option>
+        <option value="vendedor">Vendedor</option>
+        <option value="entregador">Entregador</option>
+      </select>
+
+      <button id="botao" type="submit">Criar conta</button>
+      <p id="mensagem" role="status" aria-live="polite"></p>
+    </form>
+
+    <div class="rodape">
+      Já tem conta? <a href="login.html">Entrar</a>
+      <br>
+      <a href="index.html">Voltar ao marketplace</a>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="JS/supabase.js"></script>
+
+  <script>
+    const form = document.querySelector("#form-cadastro");
+    const botao = document.querySelector("#botao");
+    const mensagem = document.querySelector("#mensagem");
+
+    form.addEventListener("submit", async function (evento) {
+      evento.preventDefault();
+      mensagem.className = "";
+      mensagem.textContent = "";
+
+      if (typeof supabaseClient === "undefined") {
+        mensagem.textContent = "Não foi possível conectar ao banco. Confira JS/supabase.js.";
+        mensagem.className = "erro";
+        return;
+      }
+
+      const nome = document.querySelector("#nome").value.trim();
+      const email = document.querySelector("#email").value.trim();
+      const senha = document.querySelector("#senha").value;
+      const tipo = document.querySelector("#tipo").value;
+
+      botao.disabled = true;
+      botao.textContent = "Criando conta...";
+
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: email,
+          password: senha,
+          options: {
+            data: {
+              nome: nome,
+              tipo: tipo
+            },
+            emailRedirectTo: window.location.origin + "/index.html"
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.session) {
+          mensagem.textContent =
+            "Conta criada! Você já pode entrar no marketplace.";
+          mensagem.className = "sucesso";
+        } else {
+          mensagem.textContent =
+            "Cadastro recebido! Confira seu e-mail para confirmar a conta antes de entrar.";
+          mensagem.className = "sucesso";
+        }
+
+      } catch (erro) {
+        mensagem.textContent =
+          erro.message || "Não foi possível criar a conta.";
+        mensagem.className = "erro";
+      } finally {
+        botao.disabled = false;
+        botao.textContent = "Criar conta";
+      }
+    });
+  </script>
+</body>
+</html>

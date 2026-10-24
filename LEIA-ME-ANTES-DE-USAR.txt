@@ -1,0 +1,33 @@
+Mercado Público — PACOTE ATUALIZADO
+
+ARQUIVOS
+- index.html: página inicial, pesquisa, categorias, autenticação e anúncios reais.
+- login.html / cadastro.html: autenticação Supabase.
+- anunciar.html: formulário de anúncio.
+- produto.html: detalhes carregados pelo ID na URL.
+- saldo.html: área de carteira sem saldo inventado; ainda não processa dinheiro.
+- JS/supabase.js: configuração do cliente e carregamento de anúncios.
+
+COMO ABRIR
+1. Extraia a pasta do ZIP.
+2. Abra a pasta no VS Code.
+3. Inicie um servidor local, por exemplo a extensão Live Server. Não use file://.
+4. Abra index.html pelo endereço local do Live Server.
+
+SUPABASE
+A configuração existente foi mantida. A chave publishable pode estar no navegador, mas NUNCA coloque uma chave service_role ou senha do banco no HTML/JS.
+
+IMPORTANTE SOBRE SEGURANÇA E FUNCIONALIDADES
+- O SELECT público de produtos depende da política RLS já configurada.
+- O INSERT depende da política RLS para usuários autenticados com vendedor_id = auth.uid(). Essa política, sozinha, NÃO garante que a pessoa seja do tipo vendedor. Para impor tipos de conta com segurança, é necessário criar tabela de perfis e políticas adequadas no banco.
+- Cadastro de usuário salva tipo como metadado, que não deve ser tratado como autorização confiável.
+- A carteira não movimenta dinheiro; não há gateway de pagamento, saque, pedidos, chat, entrega ou sistema de favoritos persistente nesta versão.
+- Produtos com imagem_url dependem de URL pública válida.
+- O fluxo de confirmação de e-mail depende das URLs configuradas em Authentication > URL Configuration no painel Supabase.
+
+TESTES RECOMENDADOS
+1. Abrir a página inicial e verificar os anúncios existentes.
+2. Buscar por nome, cidade ou categoria.
+3. Clicar em Ver produto e confirmar que a URL contém ?id=... e que os dados correspondem ao item.
+4. Criar uma conta e confirmar o e-mail se exigido pelo projeto.
+5. Entrar e tentar publicar um anúncio. Se falhar, conferir o erro no console e as políticas RLS do Supabase.
