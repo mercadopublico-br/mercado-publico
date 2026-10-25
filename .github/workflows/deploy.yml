@@ -55,3 +55,4 @@ jobs:
       - name: Publicar site
         id: deployment
         uses: actions/deploy-pages@v4
+# Nova tentativa após autorizar myNewBranch
