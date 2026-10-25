@@ -1040,6 +1040,8 @@ export default function App() {
             </p>
           </section>
         </div>
-      )}    </div>
+              )}
+      </div>
+    </main>
   );
 }
