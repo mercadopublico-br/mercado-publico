@@ -1,5 +1,5 @@
-
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from './lib/supabase';
 import {
   Search,
   Heart,
@@ -143,33 +143,161 @@ export default function App() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [notice, setNotice] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authMode, setAuthMode] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
-    if (!notice) return undefined;
+    if (!supabase) return undefined;
 
-    const timeout = window.setTimeout(() => {
-      setNotice('');
-    }, 3500);
+    let mounted = true;
 
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      setUser(data.session?.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault();
+    setAuthError('');
+
+    if (!supabase) {
+      setAuthError(
+        'A conexão com o Supabase não foi carregada. Confira as configurações do projeto.'
+      );
+      return;
+    }
+
+    if (!email.trim() || !password) {
+      setAuthError('Preencha o e-mail e a senha.');
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      if (authMode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) throw error;
+
+        if (data.session) {
+          setUser(data.session.user);
+          setAuthMode(null);
+          setEmail('');
+          setPassword('');
+          showNotice('Conta criada com sucesso!');
+        } else {
+          setAuthMode('login');
+          setPassword('');
+          showNotice(
+            'Cadastro iniciado! Confira seu e-mail para confirmar a conta.'
+          );
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) throw error;
+
+        setUser(data.user);
+        setAuthMode(null);
+        setEmail('');
+        setPassword('');
+        showNotice('Você entrou na sua conta!');
+      }
+    } catch (error) {
+      setAuthError(
+        error.message || 'Não foi possível concluir a operação.'
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleSignOut() {
+    if (!supabase) return;
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      showNotice('Não foi possível sair da conta. Tente novamente.');
+      return;
+    }
+
+    setUser(null);
+    showNotice('Você saiu da sua conta.');
+  }
+
+  function showNotice(message) {
+    setNotice(message);
+  }
+
+  function openSection(section) {
+    setMenuOpen(false);
+
+    if (section === 'login') {
+      setAuthError('');
+      setAuthMode('login');
+      return;
+    }
+
+    if (section === 'publish') {
+      if (!user) {
+        setAuthError('');
+        setAuthMode('signup');
+        showNotice('Crie uma conta ou entre para anunciar produtos.');
+        return;
+      }
+
+      showNotice(
+        'Sua conta está conectada. A publicação de anúncios ainda precisa ser implementada.'
+      );
+      return;
+    }
+
+    showNotice(`${section} estará disponível em uma próxima etapa.`);
+  }
 
   const filteredProducts = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('pt-BR');
+    const normalizedSearch = search.trim().toLowerCase();
 
     return DEMO_PRODUCTS.filter((product) => {
-      const searchableText = [
-        product.name,
-        product.category,
-        product.location,
-        product.condition,
-      ]
-        .join(' ')
-        .toLocaleLowerCase('pt-BR');
+      const matchesSearch =
+        !normalizedSearch ||
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        product.category.toLowerCase().includes(normalizedSearch) ||
+        product.location.toLowerCase().includes(normalizedSearch);
 
-      const matchesSearch = searchableText.includes(normalizedSearch);
       const matchesCategory =
         category === 'Todas' || product.category === category;
+
       const matchesFavorites =
         !favoritesOnly || favorites.includes(product.id);
 
@@ -177,368 +305,338 @@ export default function App() {
     });
   }, [search, category, favorites, favoritesOnly]);
 
-  function showNotice(message) {
-    setNotice(message);
-  }
-
-  function toggleFavorite(id) {
-    const alreadyFavorite = favorites.includes(id);
-
+  function toggleFavorite(productId) {
     setFavorites((current) =>
-      alreadyFavorite
-        ? current.filter((favoriteId) => favoriteId !== id)
-        : [...current, id]
-    );
-
-    showNotice(
-      alreadyFavorite
-        ? 'Anúncio removido dos favoritos.'
-        : 'Anúncio adicionado aos favoritos.'
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
     );
   }
 
-  function selectCategory(name) {
-    setCategory((current) => (current === name ? 'Todas' : name));
-    setFavoritesOnly(false);
-  }
-
-  function clearFilters() {
-    setSearch('');
-    setCategory('Todas');
-    setFavoritesOnly(false);
-  }
-
-  function openSection(section) {
-    setMenuOpen(false);
-
-    if (section === 'login') {
-      showNotice(
-        'O login será ativado após a integração com o Supabase.'
-      );
-      return;
-    }
-
-    if (section === 'publish') {
-      showNotice(
-        'A publicação será ativada junto com o cadastro e o login.'
-      );
-      return;
-    }
-
-    document.getElementById(section)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }
-
-  return (
-    <div className="app-shell" id="inicio">
-      <div className="announcement">
-        <Sparkles size={14} aria-hidden="true" />
-        <span>Seu próximo bom negócio começa aqui.</span>
-        <span className="announcement-extra">
-          Novas oportunidades em um só lugar.
-        </span>
-      </div>
-
-      <header className="site-header">
-        <a
-          className="brand"
-          href="#inicio"
-          aria-label="Mercado Público — página inicial"
-        >
-          <span className="brand-mark">
-            <Package size={25} aria-hidden="true" />
-          </span>
-          <span className="brand-word">
-            mercado<span className="brand-accent">público</span>
-            <small>SEU LUGAR DE BONS NEGÓCIOS</small>
-          </span>
-        </a>
-
-        <nav
-          className={`desktop-nav ${menuOpen ? 'nav-open' : ''}`}
-          aria-label="Navegação principal"
-        >
-          <a
-            className="nav-active"
-            href="#inicio"
-            onClick={() => setMenuOpen(false)}
-          >
-            Início
-          </a>
-          <a href="#categorias" onClick={() => setMenuOpen(false)}>
-            Categorias
-          </a>
-          <a href="#anuncios" onClick={() => setMenuOpen(false)}>
-            Explorar anúncios
-          </a>
-        </nav>
-
-        <div className="header-actions">
+  const featuredProducts = filteredProducts.filter(
+    (product) => product.featured
+  );
+    return (
+    <div className="min-h-screen bg-[#0b0b0f] text-white">
+      {/* CABEÇALHO */}
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0f]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-8">
           <button
-            type="button"
-            className={`icon-button favorite-nav ${
-              favoritesOnly ? 'is-active' : ''
-            }`}
             onClick={() => {
-              setFavoritesOnly((current) => !current);
-              document.getElementById('anuncios')?.scrollIntoView({
-                behavior: 'smooth',
-              });
+              setCategory('Todas');
+              setFavoritesOnly(false);
+              setSearch('');
+              setMenuOpen(false);
             }}
-            aria-label={
-              favoritesOnly
-                ? 'Mostrar todos os anúncios'
-                : 'Mostrar favoritos'
-            }
-            title="Favoritos"
+            className="flex items-center gap-2 text-left"
           >
-            <Heart size={19} />
-            {favorites.length > 0 && (
-              <span className="favorite-count">{favorites.length}</span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-xl font-black">
+              M
+            </span>
+            <span className="text-xl font-black tracking-tight">
+              Mercado <span className="text-violet-400">Público</span>
+            </span>
+          </button>
+
+          <div className="hidden max-w-xl flex-1 md:block">
+            <div className="flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-4 focus-within:border-violet-500">
+              <Search size={19} className="text-gray-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar produtos, categorias ou cidade..."
+                className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-gray-500"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} aria-label="Limpar busca">
+                  <X size={17} className="text-gray-400" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="hidden items-center gap-3 md:flex">
+            <button
+              onClick={() => setFavoritesOnly((value) => !value)}
+              className={`rounded-xl p-3 transition ${
+                favoritesOnly
+                  ? 'bg-pink-500/15 text-pink-400'
+                  : 'text-gray-300 hover:bg-white/5'
+              }`}
+              title="Favoritos"
+            >
+              <Heart size={20} />
+            </button>
+
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/5"
+              >
+                Sair
+              </button>
+            ) : (
+              <button
+                onClick={() => openSection('login')}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/5"
+              >
+                Entrar
+              </button>
             )}
-          </button>
+
+            <button
+              onClick={() => openSection('publish')}
+              className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold transition hover:bg-violet-500"
+            >
+              <Plus size={18} />
+              Anunciar
+            </button>
+          </div>
 
           <button
-            type="button"
-            className="button button-outline header-login"
-            onClick={() => openSection('login')}
-          >
-            <CircleUserRound size={17} />
-            Entrar
-          </button>
-
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={() => openSection('publish')}
-          >
-            <Plus size={18} />
-            Anunciar grátis
-          </button>
-
-          <button
-            type="button"
-            className="icon-button mobile-menu"
-            onClick={() => setMenuOpen((current) => !current)}
-            aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
-            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+            className="rounded-xl border border-white/10 p-2 md:hidden"
+            aria-label="Abrir menu"
           >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
-      </header>
 
-      <main>
-        <section className="hero">
-          <div className="hero-copy">
-            <div className="eyebrow">
-              <span className="live-dot" />
-              Um marketplace para novas possibilidades
-            </div>
+        {/* BUSCA E MENU PARA CELULAR */}
+        <div className="px-4 pb-4 md:hidden">
+          <div className="flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-3">
+            <Search size={18} className="text-gray-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar produtos ou cidade..."
+              className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-gray-500"
+            />
+          </div>
 
-            <h1>
-              Encontre. Negocie.
-              <br />
-              <span>Faça bons negócios.</span>
-            </h1>
-
-            <p>
-              Do que você precisa ao que deseja vender: descubra novas
-              possibilidades e encontre oportunidades em um só lugar.
-            </p>
-
-            <form
-              className="search-box"
-              role="search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                openSection('anuncios');
-              }}
-            >
-              <Search size={21} aria-hidden="true" />
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="O que você está procurando?"
-                aria-label="Buscar anúncios por nome, categoria ou local"
-              />
-              {search && (
+          {menuOpen && (
+            <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#14141b] p-3">
+              {user ? (
                 <button
-                  type="button"
-                  className="search-clear"
-                  onClick={() => setSearch('')}
-                  aria-label="Limpar pesquisa"
+                  onClick={handleSignOut}
+                  className="rounded-lg border border-white/10 px-3 py-3 text-sm"
                 >
-                  <X size={17} />
+                  Sair da conta
+                </button>
+              ) : (
+                <button
+                  onClick={() => openSection('login')}
+                  className="rounded-lg border border-white/10 px-3 py-3 text-sm"
+                >
+                  Entrar
                 </button>
               )}
-              <button type="submit" className="search-submit">
-                Buscar <ArrowRight size={17} />
+
+              <button
+                onClick={() => openSection('publish')}
+                className="rounded-lg bg-violet-600 px-3 py-3 text-sm font-bold"
+              >
+                <Plus size={16} className="mr-1 inline" />
+                Anunciar
               </button>
-            </form>
 
-            <div className="hero-trust">
-              <span>
-                <ShieldCheck size={16} />
-                Mais clareza na negociação
-              </span>
-              <span>
-                <Zap size={16} />
-                Fácil de explorar
-              </span>
+              <button
+                onClick={() => {
+                  setFavoritesOnly((value) => !value);
+                  setMenuOpen(false);
+                }}
+                className="rounded-lg border border-white/10 px-3 py-3 text-sm"
+              >
+                <Heart size={16} className="mr-1 inline" />
+                Favoritos
+              </button>
+
+              <button
+                onClick={() => openSection('Área do vendedor')}
+                className="rounded-lg border border-white/10 px-3 py-3 text-sm"
+              >
+                Área do vendedor
+              </button>
+
+              <button
+                onClick={() => openSection('Área motoboy')}
+                className="rounded-lg border border-white/10 px-3 py-3 text-sm"
+              >
+                Área motoboy
+              </button>
             </div>
-          </div>
+          )}
+        </div>
+      </header>
 
-          <div
-            className="hero-art"
-            aria-label="Ilustração de destaque do marketplace"
+      {/* AVISO */}
+      {notice && (
+        <div className="fixed right-4 top-24 z-[70] flex max-w-sm items-start gap-3 rounded-xl border border-violet-400/30 bg-[#1b1728] p-4 shadow-2xl">
+          <Info size={20} className="mt-0.5 shrink-0 text-violet-300" />
+          <p className="flex-1 text-sm text-gray-100">{notice}</p>
+          <button
+            onClick={() => setNotice('')}
+            className="text-gray-400 hover:text-white"
+            aria-label="Fechar aviso"
           >
-            <div className="art-orbit orbit-one" />
-            <div className="art-orbit orbit-two" />
-            <div className="art-glow" />
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
-            <div className="floating-card card-top">
-              <span>✨</span>
-              <div>
-                <strong>Novas possibilidades</strong>
-                <small>Explore algo diferente</small>
-              </div>
+      {/* CONTEÚDO PRINCIPAL */}
+      <main className="mx-auto max-w-7xl px-4 md:px-8">
+        {/* DESTAQUE */}
+        <section className="relative mt-8 overflow-hidden rounded-3xl border border-violet-400/15 bg-gradient-to-br from-[#21143a] via-[#171326] to-[#101017] px-6 py-12 md:mt-10 md:px-12 md:py-16">
+          <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-fuchsia-500/10 blur-3xl" />
+
+          <div className="relative z-10 max-w-2xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
+              <Sparkles size={15} />
+              O seu marketplace, do seu jeito
             </div>
 
-            <div className="hero-cube">
-              <Package size={100} strokeWidth={1.1} />
+            <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">
+              Encontre. Negocie.
+              <span className="block text-violet-400">Faça bons negócios.</span>
+            </h1>
+
+            <p className="mt-5 max-w-xl text-base leading-7 text-gray-300 md:text-lg">
+              Descubra produtos da sua comunidade, encontre oportunidades e
+              anuncie o que você não usa mais no Mercado Público.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                onClick={() =>
+                  document
+                    .getElementById('produtos')
+                    ?.scrollIntoView({ behavior: 'smooth' })
+                }
+                className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold transition hover:bg-violet-500"
+              >
+                Explorar produtos
+                <ArrowRight size={18} />
+              </button>
+
+              <button
+                onClick={() => openSection('publish')}
+                className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3.5 font-bold transition hover:bg-white/10"
+              >
+                <Plus size={18} />
+                Anunciar grátis
+              </button>
             </div>
 
-            <div className="floating-card card-bottom">
-              <span className="mini-check">
-                <ShieldCheck size={19} />
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-gray-300">
+              <span className="flex items-center gap-2">
+                <ShieldCheck size={18} className="text-emerald-400" />
+                Comunidade de compradores
               </span>
-              <div>
-                <strong>Seu próximo achado</strong>
-                <small>Pode estar mais perto</small>
-              </div>
+              <span className="flex items-center gap-2">
+                <Zap size={18} className="text-amber-300" />
+                Fácil de usar
+              </span>
             </div>
-
-            <div className="art-spark spark-one">✦</div>
-            <div className="art-spark spark-two">✧</div>
           </div>
         </section>
 
-        <section className="trust-strip" aria-label="Vantagens">
-          <div>
-            <ShieldCheck size={22} />
-            <span>
-              <strong>Negocie com atenção</strong>
-              <small>Confira os detalhes de cada anúncio</small>
-            </span>
-          </div>
-          <div>
-            <MessageCircle size={22} />
-            <span>
-              <strong>Converse diretamente</strong>
-              <small>Combine os detalhes com o vendedor</small>
-            </span>
-          </div>
-          <div>
-            <TrendingUp size={22} />
-            <span>
-              <strong>Descubra oportunidades</strong>
-              <small>Explore opções para seu orçamento</small>
-            </span>
-          </div>
-        </section>
-
-        <section
-          className="section categories-section"
-          id="categorias"
-        >
-          <div className="section-heading">
+        {/* CATEGORIAS */}
+        <section className="py-12">
+          <div className="mb-6 flex items-end justify-between gap-3">
             <div>
-              <span className="section-kicker">EXPLORE DO SEU JEITO</span>
-              <h2>O que você procura?</h2>
-              <p>
-                Escolha uma categoria e descubra novas possibilidades.
+              <p className="text-sm font-semibold text-violet-400">
+                ENCONTRE O QUE PROCURA
               </p>
+              <h2 className="mt-1 text-2xl font-black md:text-3xl">
+                Explore categorias
+              </h2>
             </div>
-
             <button
-              type="button"
-              className="text-link"
-              onClick={() => {
-                setCategory('Todas');
-                setFavoritesOnly(false);
-              }}
+              onClick={() => setCategory('Todas')}
+              className="text-sm font-semibold text-gray-400 hover:text-white"
             >
-              Ver todas <ArrowRight size={17} />
+              Ver todas
             </button>
           </div>
 
-          <div className="category-grid">
-            {CATEGORIES.map(({ name, icon: Icon, color }) => {
-              const selected = category === name;
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {CATEGORIES.map((item) => {
+              const Icon = item.icon;
+              const selected = category === item.name;
 
               return (
                 <button
-                  type="button"
-                  key={name}
-                  className={`category-card ${
-                    selected ? 'category-selected' : ''
-                  }`}
+                  key={item.name}
                   onClick={() => {
-                    selectCategory(name);
-                    openSection('anuncios');
+                    setCategory(selected ? 'Todas' : item.name);
+                    setFavoritesOnly(false);
                   }}
-                  aria-pressed={selected}
+                  className={`group rounded-2xl border p-4 text-left transition ${
+                    selected
+                      ? 'border-violet-400 bg-violet-500/15'
+                      : 'border-white/10 bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.05]'
+                  }`}
                 >
                   <span
-                    className="category-icon"
-                    style={{ '--category-color': color }}
+                    className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl"
+                    style={{
+                      color: item.color,
+                      backgroundColor: `${item.color}18`,
+                    }}
                   >
-                    <Icon size={25} strokeWidth={1.7} />
+                    <Icon size={22} />
                   </span>
-                  <strong>{name}</strong>
-                  <ArrowRight
-                    size={16}
-                    className="category-arrow"
-                    aria-hidden="true"
-                  />
+                  <span className="text-sm font-bold">{item.name}</span>
                 </button>
               );
             })}
           </div>
         </section>
 
-        <section className="section products-section" id="anuncios">
-          <div className="section-heading">
+        {/* PRODUTOS */}
+        <section id="produtos" className="scroll-mt-28 pb-16">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <span className="section-kicker">DESCUBRA OPORTUNIDADES</span>
-              <h2>
+              <p className="text-sm font-semibold text-violet-400">
+                OPORTUNIDADES PARA VOCÊ
+              </p>
+              <h2 className="mt-1 text-2xl font-black md:text-3xl">
                 {favoritesOnly
                   ? 'Seus favoritos'
                   : category === 'Todas'
-                    ? 'Anúncios em destaque'
+                    ? 'Produtos em destaque'
                     : category}
               </h2>
-              <p>
-                {favoritesOnly
-                  ? 'Os anúncios que você marcou para rever.'
-                  : 'Explore produtos e encontre seu próximo achado.'}
+              <p className="mt-2 text-sm text-gray-400">
+                {filteredProducts.length}{' '}
+                {filteredProducts.length === 1
+                  ? 'produto encontrado'
+                  : 'produtos encontrados'}
               </p>
             </div>
 
-            <div className="product-tools">
-              <span className="result-count" aria-live="polite">
-                {filteredProducts.length}{' '}
-                {filteredProducts.length === 1 ? 'anúncio' : 'anúncios'}
-              </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFavoritesOnly((value) => !value)}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                  favoritesOnly
+                    ? 'border-pink-400/30 bg-pink-400/10 text-pink-300'
+                    : 'border-white/10 text-gray-300 hover:bg-white/5'
+                }`}
+              >
+                <Heart size={17} />
+                Favoritos
+              </button>
 
               <button
-                type="button"
-                className="filter-button"
-                onClick={clearFilters}
+                onClick={() => {
+                  setSearch('');
+                  setCategory('Todas');
+                  setFavoritesOnly(false);
+                }}
+                className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-sm text-gray-300 hover:bg-white/5"
               >
                 <SlidersHorizontal size={17} />
                 Limpar filtros
@@ -546,170 +644,402 @@ export default function App() {
             </div>
           </div>
 
-          <div className="demo-notice">
-            <Info size={17} />
-            <span>
-              <strong>Prévia do marketplace:</strong> os produtos exibidos
-              são exemplos. Os anúncios reais serão conectados ao banco de
-              dados antes do lançamento.
-            </span>
-          </div>
-
           {filteredProducts.length > 0 ? (
-            <div className="product-grid">
-              {filteredProducts.map((product) => {
-                const isFavorite = favorites.includes(product.id);
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <article
+                  key={product.id}
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-[#121219] transition hover:-translate-y-1 hover:border-violet-400/30"
+                >
+                  <div
+                    className="relative flex h-52 items-center justify-center overflow-hidden"
+                    style={{ backgroundColor: product.color }}
+                  >
+                    <span className="select-none text-7xl transition duration-300 group-hover:scale-110">
+                      {product.emoji}
+                    </span>
 
-                return (
-                  <article className="product-card" key={product.id}>
-                    <div
-                      className="product-visual"
-                      style={{ '--product-color': product.color }}
+                    <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs font-semibold backdrop-blur">
+                      {product.condition}
+                    </span>
+
+                    <button
+                      onClick={() => toggleFavorite(product.id)}
+                      className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 backdrop-blur transition ${
+                        favorites.includes(product.id)
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-black/35 text-white hover:bg-black/60'
+                      }`}
+                      aria-label={
+                        favorites.includes(product.id)
+                          ? 'Remover dos favoritos'
+                          : 'Adicionar aos favoritos'
+                      }
                     >
-                      {product.featured && (
-                        <span className="product-badge">
-                          <Sparkles size={12} />
-                          Destaque
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        className={`product-favorite ${
-                          isFavorite ? 'is-favorite' : ''
-                        }`}
-                        onClick={() => toggleFavorite(product.id)}
-                        aria-label={
-                          isFavorite
-                            ? `Remover ${product.name} dos favoritos`
-                            : `Adicionar ${product.name} aos favoritos`
+                      <Heart
+                        size={19}
+                        fill={
+                          favorites.includes(product.id)
+                            ? 'currentColor'
+                            : 'none'
                         }
-                        aria-pressed={isFavorite}
-                      >
-                        <Heart
-                          size={19}
-                          fill={isFavorite ? 'currentColor' : 'none'}
-                        />
-                      </button>
+                      />
+                    </button>
 
-                      <span className="product-emoji" aria-hidden="true">
-                        {product.emoji}
+                    {product.featured && (
+                      <span className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-violet-600 px-3 py-1 text-xs font-bold">
+                        <Sparkles size={13} />
+                        Destaque
                       </span>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="product-info">
-                      <span className="product-category">
-                        {product.category}
-                        <span aria-hidden="true"> · </span>
-                        {product.condition}
-                      </span>
+                  <div className="p-4">
+                    <p className="text-xs font-semibold text-violet-300">
+                      {product.category}
+                    </p>
 
-                      <h3>{product.name}</h3>
+                    <h3 className="mt-2 min-h-12 font-bold leading-6 text-white">
+                      {product.name}
+                    </h3>
 
-                      <strong className="product-price">
-                        {formatPrice(product.price)}
-                      </strong>
+                    <p className="mt-3 text-xl font-black">
+                      {formatPrice(product.price)}
+                    </p>
 
-                      <span className="product-location">
-                        <MapPin size={14} />
-                        {product.location}
-                      </span>
+                    <p className="mt-3 flex items-center gap-1.5 text-sm text-gray-400">
+                      <MapPin size={15} />
+                      {product.location}
+                    </p>
 
-                      <button
-                        type="button"
-                        className="product-contact"
-                        onClick={() =>
-                          showNotice(
-                            'O contato com o anunciante será habilitado quando os anúncios reais estiverem conectados.'
-                          )
-                        }
-                      >
-                        Tenho interesse <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+                    <button
+                      onClick={() =>
+                        showNotice(
+                          'A página de detalhes e o contato com o vendedor ainda precisam ser implementados.'
+                        )
+                      }
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 py-3 text-sm font-bold transition hover:border-violet-400/40 hover:bg-violet-500/10"
+                    >
+                      Ver produto
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           ) : (
-            <div className="empty-state">
-              <Search size={30} />
-              <h3>
-                {favoritesOnly
-                  ? 'Você ainda não tem favoritos'
-                  : 'Nenhum anúncio encontrado'}
+            <div className="rounded-2xl border border-dashed border-white/15 px-5 py-16 text-center">
+              <Package size={40} className="mx-auto text-gray-500" />
+              <h3 className="mt-4 text-lg font-bold">
+                Nenhum produto encontrado
               </h3>
-              <p>
-                {favoritesOnly
-                  ? 'Use o coração nos anúncios para salvá-los aqui.'
-                  : 'Experimente outra busca ou remova os filtros.'}
+              <p className="mt-2 text-sm text-gray-400">
+                Tente mudar a busca ou escolher outra categoria.
               </p>
               <button
-                type="button"
-                className="button button-primary"
-                onClick={clearFilters}
+                onClick={() => {
+                  setSearch('');
+                  setCategory('Todas');
+                  setFavoritesOnly(false);
+                }}
+                className="mt-5 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold hover:bg-violet-500"
               >
-                Ver todos os anúncios
+                Limpar filtros
               </button>
             </div>
           )}
         </section>
 
-        <section className="sell-banner" id="vender">
-          <div className="sell-icon">
-            <Package size={29} />
-          </div>
-
-          <div className="sell-copy">
-            <span className="section-kicker">TEM ALGO PARA VENDER?</span>
-            <h2>Seu próximo negócio pode começar aqui.</h2>
-            <p>
-              Prepare seu anúncio e encontre pessoas interessadas no que
-              você oferece.
+        {/* ÁREA PARA ANUNCIAR */}
+        <section className="mb-16 rounded-3xl border border-white/10 bg-gradient-to-r from-[#1c1730] to-[#14141b] p-6 md:flex md:items-center md:justify-between md:p-10">
+          <div className="max-w-2xl">
+            <p className="text-sm font-bold text-violet-300">
+              TEM ALGO PARA VENDER?
+            </p>
+            <h2 className="mt-2 text-2xl font-black md:text-3xl">
+              Seu próximo bom negócio começa aqui.
+            </h2>
+            <p className="mt-3 leading-7 text-gray-300">
+              Prepare seu anúncio e conecte-se com pessoas que procuram o que
+              você tem para oferecer.
             </p>
           </div>
 
           <button
-            type="button"
-            className="button button-primary sell-button"
             onClick={() => openSection('publish')}
+            className="mt-6 flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 font-bold transition hover:bg-violet-500 md:mt-0"
           >
-            Começar a anunciar <ArrowRight size={18} />
+            <Plus size={19} />
+            Criar anúncio
           </button>
-        </section>
-      </main>
+        </section>      {/* RODAPÉ */}
+      <footer className="border-t border-white/10 bg-[#09090d]">
+        <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
+          <div className="grid gap-8 md:grid-cols-3">
+            <div>
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setCategory('Todas');
+                  setFavoritesOnly(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-2 text-left"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 font-black">
+                  M
+                </span>
+                <span className="text-lg font-black">
+                  Mercado <span className="text-violet-400">Público</span>
+                </span>
+              </button>
 
-      <footer className="site-footer">
-        <a className="brand footer-brand" href="#inicio">
-          <span className="brand-mark">
-            <Package size={23} />
-          </span>
-          <span className="brand-word">
-            mercado<span className="brand-accent">público</span>
-            <small>SEU LUGAR DE BONS NEGÓCIOS</small>
-          </span>
-        </a>
+              <p className="mt-4 max-w-sm text-sm leading-6 text-gray-400">
+                Um espaço para descobrir produtos, encontrar oportunidades e
+                conectar compradores e vendedores.
+              </p>
+            </div>
 
-        <p>Boas oportunidades aproximam pessoas.</p>
+            <div>
+              <h3 className="font-bold">Marketplace</h3>
+              <div className="mt-4 flex flex-col items-start gap-3 text-sm text-gray-400">
+                <button
+                  onClick={() => {
+                    setCategory('Todas');
+                    setFavoritesOnly(false);
+                    document
+                      .getElementById('produtos')
+                      ?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="hover:text-white"
+                >
+                  Explorar produtos
+                </button>
 
-        <span className="footer-copy">
-          © {new Date().getFullYear()} Mercado Público.
-        </span>
+                <button
+                  onClick={() => openSection('publish')}
+                  className="hover:text-white"
+                >
+                  Anunciar produto
+                </button>
+
+                <button
+                  onClick={() => openSection('login')}
+                  className="hover:text-white"
+                >
+                  Minha conta
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-bold">Sua conta</h3>
+              <div className="mt-4 flex flex-col items-start gap-3 text-sm text-gray-400">
+                <button
+                  onClick={() => openSection('Área do comprador')}
+                  className="hover:text-white"
+                >
+                  Área do comprador
+                </button>
+
+                <button
+                  onClick={() => openSection('Área do vendedor')}
+                  className="hover:text-white"
+                >
+                  Área do vendedor
+                </button>
+
+                <button
+                  onClick={() => openSection('Área motoboy')}
+                  className="hover:text-white"
+                >
+                  Área motoboy
+                </button>
+
+                <button
+                  onClick={() => openSection('Denúncias')}
+                  className="hover:text-white"
+                >
+                  Denúncias
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t border-white/10 pt-6 text-xs text-gray-500 sm:flex sm:items-center sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} Mercado Público. Todos os direitos
+              reservados.
+            </p>
+            <p className="mt-2 sm:mt-0">
+              Compre e venda com responsabilidade.
+            </p>
+          </div>
+        </div>
       </footer>
 
-      {notice && (
-        <div className="toast" role="status">
-          <Info size={18} />
-          <span>{notice}</span>
-          <button
-            type="button"
-            onClick={() => setNotice('')}
-            aria-label="Fechar mensagem"
+      {/* MODAL DE LOGIN E CADASTRO */}
+      {authMode && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !authLoading) {
+              setAuthMode(null);
+              setAuthError('');
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-title"
+            className="my-auto w-full max-w-md rounded-3xl border border-white/10 bg-[#14141c] p-6 shadow-2xl sm:p-8"
           >
-            <X size={17} />
-          </button>
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-300">
+                  <CircleUserRound size={27} />
+                </div>
+
+                <h2 id="auth-title" className="text-2xl font-black">
+                  {authMode === 'signup'
+                    ? 'Crie sua conta'
+                    : 'Bem-vindo de volta'}
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  {authMode === 'signup'
+                    ? 'Cadastre-se para começar a usar o Mercado Público.'
+                    : 'Entre para acessar sua conta no Mercado Público.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (authLoading) return;
+                  setAuthMode(null);
+                  setAuthError('');
+                }}
+                disabled={authLoading}
+                aria-label="Fechar janela"
+                className="rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+              >
+                <X size={21} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="auth-email"
+                  className="mb-2 block text-sm font-semibold text-gray-200"
+                >
+                  E-mail
+                </label>
+
+                <input
+                  id="auth-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="voce@exemplo.com"
+                  className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-violet-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="auth-password"
+                  className="mb-2 block text-sm font-semibold text-gray-200"
+                >
+                  Senha
+                </label>
+
+                <input
+                  id="auth-password"
+                  type="password"
+                  autoComplete={
+                    authMode === 'signup'
+                      ? 'new-password'
+                      : 'current-password'
+                  }
+                  minLength={6}
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={
+                    authMode === 'signup'
+                      ? 'Crie uma senha com pelo menos 6 caracteres'
+                      : 'Digite sua senha'
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-violet-500"
+                />
+
+                {authMode === 'signup' && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Use pelo menos 6 caracteres. Não compartilhe sua senha.
+                  </p>
+                )}
+              </div>
+
+              {authError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm leading-6 text-red-200"
+                >
+                  {authError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3.5 font-bold transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {authLoading
+                  ? 'Aguarde...'
+                  : authMode === 'signup'
+                    ? 'Criar minha conta'
+                    : 'Entrar na conta'}
+
+                {!authLoading && <ArrowRight size={18} />}
+              </button>
+            </form>
+
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/10" />
+              <span className="text-xs text-gray-500">OU</span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+
+            <p className="text-center text-sm text-gray-400">
+              {authMode === 'signup'
+                ? 'Já tem uma conta?'
+                : 'Ainda não tem uma conta?'}{' '}
+              <button
+                type="button"
+                disabled={authLoading}
+                onClick={() => {
+                  setAuthError('');
+                  setAuthMode((mode) =>
+                    mode === 'signup' ? 'login' : 'signup'
+                  );
+                }}
+                className="font-bold text-violet-300 hover:text-violet-200 disabled:opacity-50"
+              >
+                {authMode === 'signup' ? 'Entrar' : 'Cadastre-se'}
+              </button>
+            </p>
+
+            <p className="mt-5 text-center text-xs leading-5 text-gray-500">
+              Ao usar a plataforma, proteja seus dados e negocie com
+              responsabilidade.
+            </p>
+          </section>
         </div>
-      )}
-    </div>
+      )}    </div>
   );
 }
