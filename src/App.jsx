@@ -1022,26 +1022,13 @@ export default function App() {
               <button
                 type="button"
                 disabled={authLoading}
-                onClick={() => {
-                  setAuthError('');
-                  setAuthMode((mode) =>
-                    mode === 'signup' ? 'login' : 'signup'
-                  );
-                }}
-                className="font-bold text-violet-300 hover:text-violet-200 disabled:opacity-50"
-              >
-                {authMode === 'signup' ? 'Entrar' : 'Cadastre-se'}
-              </button>
-            </p>
-
-            <p className="mt-5 text-center text-xs leading-5 text-gray-500">
+                          <p className="mt-5 text-center text-xs leading-5 text-gray-500">
               Ao usar a plataforma, proteja seus dados e negocie com
               responsabilidade.
             </p>
           </section>
         </div>
-              )}
-      </div>
-    </main>
+      )}
+    </div>
   );
 }
